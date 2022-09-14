@@ -1,0 +1,52 @@
+t: time horizon
+r: tau
+p: episodes
+n: mdp states
+a: mdp actions
+# e: mdp edges
+d: dfa states
+|AP|: size of atomic proposition set
+x: Augmented MDP states
+ : TMDP: n*a^(r-1)
+ : FMDP: n*r^{N_phi}
+ : MDP:  n
+
+Considered constant/don't contribute:
+    - number of characters in STL expression
+    - Number of small phi in Flag STL
+
+Considered maximum
+    - Each node of MDP has edges to all other nodes
+
+individual complexities:
+
+    # MDP Creation: O(n^2 + e)
+	create_ts : 		O(n)
+	update_obs_mat : 	O(#obstacles) -> O(n)
+	update_adj_mat_3D : 	O(n)
+	create_input_file : 	O(n)
+	read_from_file :	O(n)
+	expand_duration_ts :	O(e)
+
+    # Position signal
+	state_to_pos : 	O(n)
+
+    # Augmented MDP Creation
+    TMDP :      O(n*a^(r-1))
+	FMDP :		O(n*a*r^{N_phi})
+    MDP  :      O(1)
+
+    # DFA Creation
+    twtl_translate: O(2^(|phi|+|AP|))
+
+    # Augmented Product MDP Creation
+    AugPA :             O(xda*2^|AP|)
+    compute_energy :    O(nda*2^|AP| + nad*log(nd) + xd)
+
+    prune_actions :     O(txa^2)
+    gen_new_ep_states : O(n*a^r)    # not for MDP
+
+    Q_learning:     O(t*(x+p))
+    test policy:    O(t)
+
+

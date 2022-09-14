@@ -1,0 +1,118 @@
+# This config file is used to set simulation parameters. There are 5 configuration sections:
+# - Environment
+# - TWTL constraint
+# - static rewards
+# - Augmented MDP rewards
+# - Q-learning configuration
+# Each section and configuration options are explained in this file
+
+
+# This option sets the MDP type. The options are "flag-MDP", "tau-MDP", and "static rewards".
+# flag-MDP and tau-MDP use rewards calculated from the satisfaction of an STL specification defined later in this file,
+# and static rewards uses rewards assigned per state also defined later in this file.
+MDP type: static rewards
+# MDP type: flag-MDP
+# MDP type: tau-MDP
+
+# The environment section defines properties of the grid environment, agent actions, and the MDP representation
+environment:
+
+  # Height and width of the grid environment
+  height: 2
+  width: 3
+
+  # Initial state for the first episode of learning
+  init state: [0,0,0]
+
+  # The action uncertainty is the epsilon that determines the probability of epsilon-stochastic transitions. 
+  # The overestimated action uncertainty is used in pruning actions to enforce the constraint.
+  # The over estimated action uncertainty should be greater than the real action uncertainty.
+  real action uncertainty: 0.1
+  over estimated action uncertainty: 0.2
+
+  # Obstacles states defined in the following list will be removed from the MDP such that they can't be visited.
+  obstacles: []
+  # obstacles: [[4,0,0],[5,0,0],[4,1,0],[5,1,0],[2,3,0],[2,4,0],[2,5,0],[3,3,0],[3,4,0],[3,5,0],[4,3,0],[4,4,0],[4,5,0]]
+
+
+# The TWTL constraint section defines options for the probabilistically enforced TWTL constraint
+TWTL constraint:
+
+  # The following defines the TWTL task that is probabilistically enforced. You must define named regions under "regions".
+  # Alternatively, for a simple pickup and delivery tasks, the following can be set to "None", 
+  # and "pickup" and "delivery" states must be defined under "regions"
+  TWTL task: '[H^1 r3]^[0,2]'
+  # '[H^1 r3]^[0,2] & [H^1 r1]^[0,3]'   sss
+  # '[H^1 r3]^[0,2] * [H^0 r1]^[1,2]'
+  # '[H^1 pickup]^[0,20] * ([H^1 delivery1]^[0,20] | [H^1 delivery2]^[0,20]) * [H^1 base]^[0,20]'
+
+  # You can define region coordinates that will replace the respective name in the TWTL task.
+  # You will have issues if one name is a subset of another (i.e. 'base' and 'base2')
+  regions:
+    pickup: [0,0,0]
+    # [5,6,0]
+    delivery1: [0,0,0]
+    # [7,1,0]
+    delivery2: [0,0,0]
+    # [3,0,0]
+    base: [0,0,0]
+    # [0,7,0]
+
+  # DFA kind can be "infinity" or "normal". Normal is the full automaton and infinity is the relaxed version..
+  DFA kind: normal
+  # infinity
+  DFA modification type: total
+  # 
+
+  # The probability to which the TWTL task will be enforced
+  desired satisfaction probability: 0.8
+
+  # The time horizon used when the custom task is set to "None" for a simple pick up and delivery.
+  # This is not used if a TWTL task is given
+  time horizon: 30
+
+  # Whether to save a png of the dfa in the output folder
+  save dfa: True
+
+
+# STL objective used in flag-MDP and tau-MDP MDP options
+aug-MDP rewards:
+  STL expression: G[0,10]F[0,3](((x>1)&(x<2))&((y>3)&(y<4)))
+
+
+# The region to reward map used in the static rewards MDP option
+static rewards:
+  reward dict: 
+    r0: 1
+    r1: 1
+    r2: 10
+    r3: 5
+    r4: 1
+    r5: 1
+    r6: 10
+    r7: 5
+    r8: 1
+    r9: 0
+    r10: 0
+    r11: 0
+    r12: 5
+    r13: 5
+    r14: 5
+    r15: 5
+
+
+# The Q-learning configuration section defines parameters for learning the optimal policy according to either STL based rewards for
+# tau-MDP and flag-MDP options or region rewards for the static rewards option.
+Q-learning config:
+
+  # The number of episodes for learning
+  number of episodes: 50000
+
+  # Parameters used in the Q-value update
+  learning rate: 0.1
+  discount: 0.999
+
+  # The exploration probability in epison-greedy exploration is decayed as learning proceeds.
+  # Exploration probability decay is calculated by solving the following equation: (start * decay^(num_eps - 1) = end)
+  explore probability start: 0.4
+  explore probability end: 0.07
