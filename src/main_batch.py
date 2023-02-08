@@ -16,6 +16,8 @@ from dfa import create_dfa, save_dfa
 from static_reward_mdp import StaticRewardMdp
 import Q_learning as ql
 
+import shutil
+
 CONFIG_PATH = '../configs/default_static.yaml'
 
 NORMAL_COLOR = '\033[0m'
@@ -58,12 +60,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
     h = 1   # depth: use only 2 dimensions
     init_state = env_cfg['init state']
     obstacles = env_cfg['obstacles']
-    one_way = env_cfg['one way']
-    one_way_dict = {}
-    if one_way != None:
-        for i in one_way:
-            one_way_dict[int(i[1:])] = int(one_way[i][1:])
-        print(one_way_dict)
 
     def xy_to_region(x,y,z):
         # x is down, y is across
@@ -87,7 +83,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
     bases = {}
     obs_mat = ce.update_obs_mat(obs_mat, state_mat, m, obstacles, init_state)
     TS      = ce.update_adj_mat_3D(m, n, h, TS, obs_mat)
-    TS      = ce.update_one_way(TS, one_way_dict)
     ce.create_input_file(TS, state_mat, obs_mat, paths[0], bases, disc, m, n, h, 0)
     ts_file = paths
     ts_dict = lomap.Ts(directed=True, multi=False) 
@@ -166,8 +161,7 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
     # Augmented Product MDP Creation
     # =================================
     pa_start_time = timeit.default_timer()
-    use_precomputed_values = twtl_cfg['use_precomputed_values']
-    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind, use_precomputed_values)
+    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind)
     pa = copy.deepcopy(pa_or)	      # copy the pa
     pa_timecost =  timeit.default_timer() - pa_start_time
 
@@ -231,11 +225,11 @@ def main():
     # environment config
     env_cfg = config['environment']
     eps_unc    = env_cfg['real action uncertainty'] # Uncertainity in actions, real uncertainnity in MDP
-    eps_unc_learning = env_cfg['over estimated action uncertainty'] # Overestimated uncertainity used in learning
+    # eps_unc_learning = env_cfg['over estimated action uncertainty'] # Overestimated uncertainity used in learning
 
     # TWTL constraint config
     twtl_cfg = config['TWTL constraint']
-    des_prob = twtl_cfg['desired satisfaction probability'] # Minimum desired probability of satisfaction
+    # des_prob = twtl_cfg['desired satisfaction probability'] # Minimum desired probability of satisfaction
 
     mdp_type = config['MDP type']
     if mdp_type == 'static rewards':
@@ -246,50 +240,74 @@ def main():
     test_cfg = config['test_policy config']
     num_episodes_test = test_cfg['number of episodes']
     use_saved_policy =  test_cfg['use saved policy']
-    policy_file =  test_cfg['policy_file']
 
     # test_gen_time()
 
     # ==== Construct the Pruned Time-Product MDP ====
-    prep_start_time = timeit.default_timer()
+    for eps_unc_learning in [0.1, 0.2]:
+        src = '/home/xslin/Documents/xslin/research/RL/Abbas_Cons/Abbas_Cons/data/data_epsilon_'+str(eps_unc_learning)
+        dst = '/home/xslin/Documents/xslin/research/RL/Abbas_Cons/Abbas_Cons/data'
+        for filename in os.listdir(src):           
+            shutil.copy(os.path.join(src, filename), dst)
+        
+        for des_prob in [0.6, 0.7]:
+            print([eps_unc_learning,des_prob])
+            if [eps_unc_learning, des_prob] == [0.1, 0.6]:
+                continue
+            prep_start_time = timeit.default_timer()
 
-    # Construct the Product MDP
-    pa = build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg)
-    # Prune it at each time step
-    prune_start = timeit.default_timer()
-    print("____start pruning____")
-    pa.prune_actions(eps_unc_learning, des_prob)
-    prune_end = gen_start = timeit.default_timer()
-    print('Time PA action pruning time (s): {}'.format(prune_end - prune_start))
-    pa.gen_new_ep_states()
-    gen_end = timeit.default_timer()
+            # Construct the Product MDP
+            pa = build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg)
+            # Prune it at each time step
+            prune_start = timeit.default_timer()
+            print("____start pruning____")
+            pa.prune_actions(eps_unc_learning, des_prob)
+            prune_end = gen_start = timeit.default_timer()
+            print('Time PA action pruning time (s): {}'.format(prune_end - prune_start))
+            pa.gen_new_ep_states()
+            gen_end = timeit.default_timer()
 
-    prep_end_time = timeit.default_timer()
+            prep_end_time = timeit.default_timer()
 
-    print('New ep/traj generation time (s): {}'.format(gen_end - gen_start))
-    print('')
-    print('Total environment creation time: {}'.format(prep_end_time - prep_start_time))
-    print('')
+            print('New ep/traj generation time (s): {}'.format(gen_end - gen_start))
+            print('')
+            print('Total environment creation time: {}'.format(prep_end_time - prep_start_time))
+            print('')
 
-    # ==== Find the optimal policy ====
-    # exit()
-    print('learning with {} episodes'.format(num_episodes))
-    timer = timeit.default_timer()
-    if not use_saved_policy:
-        pi = ql.Q_learning(pa, num_episodes, eps_unc, learn_rate, discount, explore_prob_decay, explore_prob_start)
-    else:
-        pi = None
-    qlearning_time = timeit.default_timer() - timer
-    print('learning time: {} seconds'.format(qlearning_time))
+            # ==== Find the optimal policy ====
+            # exit()
+            print('learning with {} episodes'.format(num_episodes))
+            timer = timeit.default_timer()
+            if not use_saved_policy:
+                pi = ql.Q_learning(pa, num_episodes, eps_unc, learn_rate, discount, explore_prob_decay, explore_prob_start)
+            else:
+                pi = None
+            qlearning_time = timeit.default_timer() - timer
+            print('learning time: {} seconds'.format(qlearning_time))
 
-    # ==== test policy ====
-    stl_expr = config['aug-MDP rewards']['STL expression']
+            # ==== test policy ====
+            stl_expr = config['aug-MDP rewards']['STL expression']
+            print(1)
+            ql.test_policy(pi, pa, stl_expr, eps_unc, num_episodes_test, mdp_type, use_saved_policy)
+            print(2)
 
-    ql.test_policy(pi, pa, stl_expr, eps_unc, num_episodes_test, mdp_type, use_saved_policy, policy_file)
+            files_to_move = ['training_sat_count.txt','time_traj_log.txt','learned_policy.json','prune_actions.txt','ep_rewards.npy']
+            des_folder = dst + '/new_acc_result/e{}/p{}'.format(str(eps_unc_learning).replace('.',''),str(des_prob).replace('.',''))
+            for f in files_to_move:
+                shutil.copy(os.path.join(dst, f), des_folder)
+            #print(os.listdir(os.path.join(dst, '../output')))
+            for f in os.listdir(os.path.join(dst, '../output')):
+                #print(f)
+                if os.path.isfile(dst + '/../output/' + f):
+                    #print('a')
+                    shutil.copy(dst + '/../output/' + f, des_folder)
+            
+
+            
+            
 
 
 
 
 if __name__ == '__main__':
     main()
-

@@ -22,6 +22,12 @@ def create_ts(m, n, h):
     TS = update_adj_mat_3D(m, n, h, adj_mat, obs_mat)
     return TS, obs_mat, state_mat
 
+def update_one_way(adj_mat, one_way_dict):
+    for i in one_way_dict:
+        adj_mat[one_way_dict[i]][i] = 0
+
+    return adj_mat  
+
 def update_obs_mat(obs_mat, state_mat, m, obstacles = None, init_state = None):
     ''' update the observation matrix with known data so we can update the
     adjacency matrix and therefore the environment file '''

@@ -54,10 +54,10 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
 
     # Log state sequence and reward
     trajectory_reward_log = []
-    mdp_traj_log = []
+    mdp_traj_log = ''
     tr_log_file = os.path.join(this_file_path, '../output/trajectory_reward_log.txt')
     mdp_log_file = os.path.join(this_file_path, '../output/mdp_trajectory_log.txt')
-    # q_table_file = '../output/live_q_table.txt'('r0', 2): 1, ('r1'
+    # q_table_file = '../output/live_q_table.txt'
     log = True
     # truncate file
     open(tr_log_file, 'w').close()
@@ -77,7 +77,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
     qtable = {t:{} for t in range(t_init, time_steps+1)}
     # print("  ___      ",pa.get_states(),"\n\n")
     # print("\n\n","  ___ nodes     ",pa.newg.nodes(),"\n\n")
-
+    
     for t in qtable:
         qtable[t] = {q[:2]:{} for q in pa.newg.nodes() if q[:2]+(t,) in pa.newg.nodes()}
             
@@ -114,23 +114,16 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
     if log:
         trajectory_reward_log.extend(init_traj)
         init_mdp_traj = [pa.get_mdp_state(z) for z in init_traj]
-        mdp_traj_str = ''
-        mdp_traj_str += COLOR_DICT['explore'] + '{:<4}'.format('0:')
         for x in init_mdp_traj:
-            mdp_traj_str += '{:<4}'.format(x)
+            mdp_traj_log += '{:<4}'.format(x)
     # z = pa.init.keys()[0]
-
-    a = [(0,50), (39900,40000),(149900,150000), (199900,200000),(299900,300000),(399900,400000),(499900,500000)]
-    save_ep=[]
-    for i in a:
-        save_ep.extend(list(range(i[0],i[1])))
 
     # Loop for number of training episodes
     counter = 0
     success_counter = 0 
     pi_c_trigger = False
     twtl_pass_count_list = []
-    save_policy_ep = [1,1000,3000,10000,20000,30000,40000,50000,100000,200000,400000,600000,800000,1000000,1200000,1500000,1800000,2000000]
+    save_policy_ep = [1,10,100,1000,10000,50000,100000,200000,400000,600000,800000,1000000]
     ave_reward = 0
     max_q = 0
     for ep in tqdm(range(episodes)):
@@ -148,12 +141,16 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
                 action_chosen = pa.pi_c[t][z]
                 action_chosen_by = 'pi epsilon go'
             else:
-                if np.random.uniform() < epsilon:   # Explore
-                    action_chosen = random.choice(pruned_actions)
-                    action_chosen_by = "explore"
-                else:                               # Exploit
-                    action_chosen = pi[t][z]
-                    action_chosen_by = "exploit"
+                if t < time_steps:
+                    if np.random.uniform() < epsilon:   # Explore
+                        action_chosen = random.choice(pruned_actions)
+                        action_chosen_by = "explore"
+                    else:                               # Exploit
+                        action_chosen = pi[t][z]
+                        action_chosen_by = "exploit"
+                else:
+                    action_chosen =random.choice(pruned_actions)
+                    
             #cur_idx = int(z[0][1:])
             #next_idx = cur_idx + pa.action_to_idx[action_chosen]
             #next_state = [i for i in pruned_states if int(i[0][1:])==next_idx][0]
@@ -166,34 +163,27 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
                 action_result = 'intended'
             else:
                 action_result = 'unintended'
-
-            reward = pa.reward(next_z)
             
-            # TODO: shouldn't this update based on action_chosen as that was the "action"?
-            cur_q = qtable[t][z][action_chosen]
-            '''if t+1 == time_steps:
-                max_future_q = 0
-            else:
-                future_qs = qtable[t+1][next_z]
-                max_future_q = max(future_qs.values())'''
-
-            if next_z in qtable[(t+1)%(time_steps+1)]:
+            reward = pa.reward(next_z)
+            if t < time_steps:              
+                # TODO: shouldn't this update based on action_chosen as that was the "action"?
+                cur_q = qtable[t][z][action_chosen]
                 future_qs = qtable[(t+1)%(time_steps+1)][next_z]
                 max_future_q = max(future_qs.values())
-            else:
-                future_qs = qtable[0][pa.get_null_state(next_z)]
-                max_future_q = max(future_qs.values())
-                
-            # Update q value
-            new_q = (1 - learn_rate) * cur_q + learn_rate * (reward + discount * max_future_q)
-            qtable[t][z][action_chosen] = new_q
-            if new_q > max_q:
-                max_q = new_q
-            # Update optimal policy
-            if pa.pruned_actions[t][z] != []: 
-                pi[t][z] = max(pruned_actions, key=qtable[t][z].get)
-            else:
-                pi[t][z] = pa.pi_c[t][z]
+
+                # Update q value
+                new_q = (1 - learn_rate) * cur_q + learn_rate * (reward + discount * max_future_q)
+                qtable[t][z][action_chosen] = new_q
+
+                if new_q > max_q:
+                    max_q = new_q
+                    
+                # Update optimal policy
+                if pa.pruned_actions[t][z] != []: 
+                    pi[t][z] = max(pruned_actions, key=qtable[t][z].get)
+                else:
+                    pi[t][z] = pa.pi_c[t][z]
+            
 
             # track sum of rewards
             ep_rew_sum += reward
@@ -201,7 +191,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
             if log:
                 trajectory_reward_log.append(next_z)
                 mdp_str = COLOR_DICT[action_result] + COLOR_DICT[action_chosen_by] + '{:<4}'.format(pa.get_mdp_state(next_z))
-                mdp_traj_str += mdp_str
+                mdp_traj_log += mdp_str
             
             z = next_z
             if t == time_steps - 1:
@@ -222,16 +212,16 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
         ep_rewards[ep] = ep_rew_sum
         ave_reward += ep_rew_sum
         if rem(ep,500)==0:
-            print(ave_reward/500,max_q,epsilon)
+            print(ave_reward/500, max_q)
             ave_reward = 0
         ep_rew_sum = 0
-
-        if ep+1 in save_policy_ep:
+  
+        if ep in save_policy_ep:
             name = 'data/learned_policy_{}.json'.format(ep)
             save_policy(pi, name)    
 
         z = pa.get_null_state(z)
-        init_traj = [z]
+
         if pa.is_STL_objective:
             # TODO
             #FIXME: pi[0][z] could be None
@@ -264,29 +254,20 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
             # Don't want any progress toward TWTL satisfaction on this transition
             init_z = z
         z = init_z
+        
         if log:
-            if ep in save_ep:
-                mdp_traj_log.append(mdp_traj_str)
-            mdp_traj_str = ''
-            mdp_traj_str += COLOR_DICT['explore'] + '{:<4}'.format(str(ep+1)+':')
-            for pa_s in init_traj:
-                mdp_s = pa.get_mdp_state(pa_s)
-                mdp_traj_str += '{:<4}'.format(mdp_s)
+            with open(tr_log_file, 'a') as log_file:
+                log_file.write(str(trajectory_reward_log))
+                log_file.write('\n')
+            with open(mdp_log_file, 'a') as log_file:
+                log_file.write(str(mdp_traj_log))
+                log_file.write('\n')
 
-        if ep == 300100:
-             with open(mdp_log_file, 'a') as log_file:
-                for line in mdp_traj_log:
-                    log_file.write(line)
-                    log_file.write('\n')
-        
-    if log:
-        with open(tr_log_file, 'a') as log_file:
-            log_file.write(str(trajectory_reward_log))
-            log_file.write('\n')
-
-        trajectory_reward_log = init_traj[:]
-        init_mdp_traj = [pa.get_mdp_state(p) for p in init_traj]
-        
+            trajectory_reward_log = init_traj[:]
+            init_mdp_traj = [pa.get_mdp_state(p) for p in init_traj]
+            mdp_traj_log = ''
+            for x in init_mdp_traj:
+                mdp_traj_log += '{:<4}'.format(x)
 
     np.save('data/ep_rewards.npy', ep_rewards)
 
@@ -596,7 +577,7 @@ def test_policy_2(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy):
     reward_sum = 0
     
     for idx in range(iters):
-        #z,_,_ = pa.initial_state_and_time()
+        z,_,_ = pa.initial_state_and_time()
         init_traj = [z]
         mdp_traj = [pa.get_mdp_state(p) for p in init_traj]
         pas_traj = [p for p in init_traj]

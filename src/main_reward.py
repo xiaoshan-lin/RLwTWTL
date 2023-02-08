@@ -5,6 +5,9 @@ import yaml
 import os
 import copy
 import networkx as nx
+import time
+import numpy as np
+from tqdm import tqdm
 
 from pyTWTL import lomap
 from pyTWTL import synthesis as synth
@@ -15,6 +18,9 @@ from fmdp_stl import Fmdp
 from dfa import create_dfa, save_dfa
 from static_reward_mdp import StaticRewardMdp
 import Q_learning as ql
+
+import tkinter as tk
+from tkinter import filedialog
 
 CONFIG_PATH = '../configs/default_static.yaml'
 
@@ -58,12 +64,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
     h = 1   # depth: use only 2 dimensions
     init_state = env_cfg['init state']
     obstacles = env_cfg['obstacles']
-    one_way = env_cfg['one way']
-    one_way_dict = {}
-    if one_way != None:
-        for i in one_way:
-            one_way_dict[int(i[1:])] = int(one_way[i][1:])
-        print(one_way_dict)
 
     def xy_to_region(x,y,z):
         # x is down, y is across
@@ -87,7 +87,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
     bases = {}
     obs_mat = ce.update_obs_mat(obs_mat, state_mat, m, obstacles, init_state)
     TS      = ce.update_adj_mat_3D(m, n, h, TS, obs_mat)
-    TS      = ce.update_one_way(TS, one_way_dict)
     ce.create_input_file(TS, state_mat, obs_mat, paths[0], bases, disc, m, n, h, 0)
     ts_file = paths
     ts_dict = lomap.Ts(directed=True, multi=False) 
@@ -166,8 +165,7 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
     # Augmented Product MDP Creation
     # =================================
     pa_start_time = timeit.default_timer()
-    use_precomputed_values = twtl_cfg['use_precomputed_values']
-    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind, use_precomputed_values)
+    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind)
     pa = copy.deepcopy(pa_or)	      # copy the pa
     pa_timecost =  timeit.default_timer() - pa_start_time
 
@@ -206,7 +204,17 @@ def main():
     Main function. Read in configuration values, construct the Pruned Time-Product MDP, 
     find the optimal policy, and test the optimal policy.
     """
+    '''root = tk.Tk()
+    root.withdraw()
+    cfg_path = filedialog.askopenfilenames(initialdir=os.path.dirname(os.path.abspath(__file__))+'/data/acc_result/case_3',
+                                               filetypes=[('TXT','*.txt')])
+    root.destroy()    '''
 
+    cfg_path = '/home/xslin/Documents/xslin/research/RL/Abbas_Cons/Abbas_Cons/data/acc_result/case_3/e02/p05'   
+    with open(cfg_path+'/output/trajectory_reward_log.txt', 'r') as fp:
+        Lines = fp.readlines()
+    
+   
     # Load default config
     my_path = os.path.dirname(os.path.abspath(__file__))
     def_cfg_rel_path = CONFIG_PATH
@@ -246,7 +254,6 @@ def main():
     test_cfg = config['test_policy config']
     num_episodes_test = test_cfg['number of episodes']
     use_saved_policy =  test_cfg['use saved policy']
-    policy_file =  test_cfg['policy_file']
 
     # test_gen_time()
 
@@ -258,13 +265,14 @@ def main():
     # Prune it at each time step
     prune_start = timeit.default_timer()
     print("____start pruning____")
-    pa.prune_actions(eps_unc_learning, des_prob)
+    #pa.prune_actions(eps_unc_learning, des_prob)
     prune_end = gen_start = timeit.default_timer()
     print('Time PA action pruning time (s): {}'.format(prune_end - prune_start))
     pa.gen_new_ep_states()
     gen_end = timeit.default_timer()
 
     prep_end_time = timeit.default_timer()
+    
 
     print('New ep/traj generation time (s): {}'.format(gen_end - gen_start))
     print('')
@@ -275,18 +283,15 @@ def main():
     # exit()
     print('learning with {} episodes'.format(num_episodes))
     timer = timeit.default_timer()
-    if not use_saved_policy:
-        pi = ql.Q_learning(pa, num_episodes, eps_unc, learn_rate, discount, explore_prob_decay, explore_prob_start)
-    else:
-        pi = None
-    qlearning_time = timeit.default_timer() - timer
-    print('learning time: {} seconds'.format(qlearning_time))
-
-    # ==== test policy ====
-    stl_expr = config['aug-MDP rewards']['STL expression']
-
-    ql.test_policy(pi, pa, stl_expr, eps_unc, num_episodes_test, mdp_type, use_saved_policy, policy_file)
-
+    
+    ep_rewards = np.zeros(num_episodes)
+    for idx,line in enumerate(tqdm(Lines)):
+        line = eval(line)[1:]
+        reward_sum = 0
+        for i in line:
+            reward_sum += pa.reward(i)
+        ep_rewards[idx] = reward_sum
+    np.save(cfg_path + '/ep_rewards.npy', ep_rewards)
 
 
 

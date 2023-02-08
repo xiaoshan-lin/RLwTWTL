@@ -10,11 +10,10 @@ import random
 from tqdm import tqdm
 import os
 from scipy.optimize import linprog
-from check_init_value import check_init_value
 
 class AugPa(lomap.Model):
 
-    def __init__(self, aug_mdp, dfa, time_bound, width, height, dfa_kind, use_precomputed_values):
+    def __init__(self, aug_mdp, dfa, time_bound, width, height, dfa_kind):
         # aug_mdp is an augmented mdp such as a tau-mdp or flag-mdp
         # dfa is generated from a twtl constraint
         # time_bound is both the time bound of the twtl task, and the time horizon of the STL constraint
@@ -29,16 +28,12 @@ class AugPa(lomap.Model):
         self.is_STL_objective = not (aug_mdp.name == 'Static Reward MDP')
         self.width = width
         self.height = height
-        self.std_ql = False
-        self.use_precomputed_values = use_precomputed_values 
         
         # generate
         # Following has O(xda*2^|AP|) worst case. O(xd) for looping through all PA states * O(a * 2^|AP|) for adjacent MDP and DFA states
         product_model,_,_ = synth.modified_ts_times_fsa(aug_mdp, dfa, self.time_bound)
         self.init_dict = product_model.init
         self.g = product_model.g
-        #self.plot_graph(self.g,'productMDP')
-        #self.plot_graph(self.dfa.g,'DFA')
         self.final = product_model.final
         self.idx_to_action = {0:'stay',1:'E',-1:'W',-self.width:'N',self.width:'S',
                               -self.width-1:'NW',-self.width+1:'NE',self.width-1:'SW',self.width+1:'SE'}
@@ -68,16 +63,6 @@ class AugPa(lomap.Model):
 
         # allow caller to compute energy so it can be timed
         self.energy_dict = None
-
-    def plot_graph(self, graph, fname):
-        uwnew = nx.nx_agraph.to_agraph(graph)
-        uwnew.layout(prog='dot')
-        path = 'output/DFA-outputs'
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        uwnew.draw('output/DFA-outputs/{}.png'.format(fname))
-        print('done')
-        #time.sleep(2)
 
     def _gen_null_states(self):
         null_pa_states = []
@@ -299,9 +284,9 @@ class AugPa(lomap.Model):
         return tpmdp_transitions
     
     def prune_actions(self, eps_uncertainty, des_prob):    
- 
+        
+        
         self.back_propagation(eps_uncertainty, des_prob)
-        check_init_value(des_prob)
         # print("prune_action")
         ep_len = self.time_bound
         self.pi_c = {t:{} for t in range(ep_len + 1)}
@@ -361,50 +346,46 @@ class AugPa(lomap.Model):
             # print(pp)
             t = pp[2]
             p = pp[:2]
-            if self.std_ql:
+            self.pi_c[t][p] = self.final_sa_values[pp][1]
+            if pp[1] != "trash":
+                '''
+                next_ps = pruned_states[t][p][:]
+                # print("   nps    ",next_ps)
+                for next_p in next_ps:
+                    # print(self.states_to_action(p,next_p),"   ...  np    ",next_p)
+                    # print("   !!!!    ",self.opt_sa_value[pp])
+                    if self.opt_sa_value[pp][self.states_to_action(p,next_p)] < des_prob:
+                        # print(self.opt_sa_value[pp][self.states_to_action(p,next_p)],"   !!!!    ",des_prob)
+                        pruned_states[t][p].remove(next_p)
+
+                if pruned_states[t][p] == []:                   
+                    #self.final_sa_values[p] is the closest optimization value to des_prob determined from state p
+                    # print(pruned_states[t][p],pp,"      ....      ",t,"        TP        ",self.final_sa_values[pp],self.final_sa_values[pp][1],self.take_action(p, self.final_sa_values[pp][1], -1))
+                    pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
+                    
+
+                # print(t,p)
+                # print(pruned_states[t][p])
+                pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
+                '''
+                next_ps = pruned_states[t][p][:]
+                for next_p in next_ps:
+                    next_states = self.get_low_prob_neighbors(p,next_p)
+                    next_states.append(next_p)
+                    for nn in next_states:
+                        if self.final_sa_values[nn+(t+1,)][0] < des_prob:
+                            pruned_states[t][p].remove(next_p)
+                            break
+                if pruned_states[t][p] == []:
+                    # pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
+                    pass
+                    
+
+                pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
+            else:
                 test_neighbors = self.aug_mdp.g.neighbors(p[0])
                 test_neighbors = [(i,0) for i in test_neighbors]
-                pruned_actions[t][p] = [self.states_to_action(p,q) for q in test_neighbors]
-
-            else:
-                self.pi_c[t][p] = self.final_sa_values[pp][1]
-                if pp[1] != "trash":
-                    '''
-                    next_ps = pruned_states[t][p][:]
-                    # print("   nps    ",next_ps)
-                    for next_p in next_ps:
-                        # print(self.states_to_action(p,next_p),"   ...  np    ",next_p)
-                        # print("   !!!!    ",self.opt_sa_value[pp])
-                        if self.opt_sa_value[pp][self.states_to_action(p,next_p)] < des_prob:
-                            # print(self.opt_sa_value[pp][self.states_to_action(p,next_p)],"   !!!!    ",des_prob)
-                            pruned_states[t][p].remove(next_p)
-
-                    if pruned_states[t][p] == []:                   
-                        #self.final_sa_values[p] is the closest optimization value to des_prob determined from state p
-                        # print(pruned_states[t][p],pp,"      ....      ",t,"        TP        ",self.final_sa_values[pp],self.final_sa_values[pp][1],self.take_action(p, self.final_sa_values[pp][1], -1))
-                        pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
-                        
-
-                    # print(t,p)
-                    # print(pruned_states[t][p])
-                    pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
-                    '''
-                    next_ps = pruned_states[t][p][:]
-                    for next_p in next_ps:
-                        next_states = self.get_low_prob_neighbors(p,next_p)
-                        next_states.append(next_p)
-                        for nn in next_states:
-                            if self.final_sa_values[nn+(t+1,)][0] < des_prob:
-                                pruned_states[t][p].remove(next_p)
-                                break
-                    if pruned_states[t][p] == []:
-                        # pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
-                        pass
-                    pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
-                else:
-                    test_neighbors = self.aug_mdp.g.neighbors(p[0])
-                    test_neighbors = [(i,0) for i in test_neighbors]
-                    pruned_actions[t][p] = [self.states_to_action(p, neighbor) for neighbor in test_neighbors]
+                pruned_actions[t][p] = [self.states_to_action(p, neighbor) for neighbor in test_neighbors]
 
         for pp in self.newg.nodes():
             p = pp[:2]
@@ -427,7 +408,7 @@ class AugPa(lomap.Model):
 
     def back_propagation(self, eps_uncertainty, des_prob):
         tpa_transitions = self.time_product_mdp()
-        use_precomputed_values = self.use_precomputed_values
+        use_precomputed_values = True
         if use_precomputed_values:          
             with open('data/final_sa_values.txt', 'r') as fp:
                 data = json.load(fp)
@@ -645,8 +626,7 @@ class AugPa(lomap.Model):
         
         # for verifying next_state
         # next_state = [i for i in self.pruned_states[t][s] if int(i[0][1:])==next_idx][0]
-        oob = ['r6','r11','r13','r15','r16','r17','r18']
-        oob = []
+
         match self.aug_mdp.name:
             case "Static Reward MDP":
                 cur_idx = int(s[0][1:])
@@ -667,9 +647,6 @@ class AugPa(lomap.Model):
         ts_prop = self.aug_mdp.g.nodes[next_aug_mdp_s].get('prop',set())
         fsa_next_state = self.dfa.next_states_of_fsa(s[1], ts_prop)[0]
         next_s = (next_aug_mdp_s, fsa_next_state)
-        if self.get_mdp_state(next_s) in oob:
-            print(self.get_mdp_state(next_s))
-            print('intended transition wrong')
 
         if np.random.uniform() > uncertainty:
             return next_s
@@ -682,8 +659,6 @@ class AugPa(lomap.Model):
 
             # Choose from low probability states
             next_s = random.choice(low_prob_states)
-            if self.get_mdp_state(next_s) in oob:
-                print('low prob states wrong')
             return next_s
 
     def get_low_prob_neighbors(self, s1, s2):
@@ -765,8 +740,8 @@ class AugPa(lomap.Model):
         return z, t_init, init_traj
 
     def reward(self, pa_s, beta = 2):
-        
-        if not self.std_ql:
+        std_ql = True
+        if not std_ql:
             aug_mdp_s = pa_s[0]
             try:
                 rew = self.reward_cache[(aug_mdp_s,beta)]

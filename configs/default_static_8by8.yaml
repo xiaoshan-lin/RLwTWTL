@@ -18,24 +18,21 @@ MDP type: static rewards
 environment:
 
   # Height and width of the grid environment
-  height: 6
-  width: 6
+  height: 8
+  width: 8
 
   # Initial state for the first episode of learning
-  init state: [0,0,0]
+  init state: [0,7,0]
 
   # The action uncertainty is the epsilon that determines the probability of epsilon-stochastic transitions. 
   # The overestimated action uncertainty is used in pruning actions to enforce the constraint.
   # The over estimated action uncertainty should be greater than the real action uncertainty.
-  real action uncertainty: 0.05 #don't change
-  over estimated action uncertainty: 0.03 # e_est
+  real action uncertainty: 0.1 #don't change
+  over estimated action uncertainty: 0.1 # e_est
 
   # Obstacles states defined in the following list will be removed from the MDP such that they can't be visited.
   # obstacles: []
-  obstacles: [[0,4,0],[0,5,0],[1,1,0],[2,0,0],[2,1,0],[2,3,0],[3,0,0],[3,1,0],[3,3,0],[4,0,0],[4,5,0],[5,4,0],[5,5,0]]
- 
-  one way: 
-    r20: r14 # r20 -> r14; r14 not -> r20
+  obstacles: [[4,0,0],[5,0,0],[4,1,0],[5,1,0],[2,3,0],[2,4,0],[2,5,0],[3,3,0],[3,4,0],[3,5,0],[4,3,0],[4,4,0],[4,5,0]]
 
 
 # The TWTL constraint section defines options for the probabilistically enforced TWTL constraint
@@ -44,10 +41,7 @@ TWTL constraint:
   # The following defines the TWTL task that is probabilistically enforced. You must define named regions under "regions".
   # Alternatively, for a simple pickup and delivery tasks, the following can be set to "None", 
   # and "pickup" and "delivery" states must be defined under "regions"
-  TWTL task: '[H^1 pickup]^[0,8] * [H^1 delivery1]^[0,6] * ([H^1 delivery2]^[0,6] | [H^1 delivery3]^[0,6]) * [H^1 base]^[0,12]'
-  # TWTL task: '[H^1 pickup]^[0,6] * [H^1 delivery1]^[0,5] * [H^1 delivery2]^[0,5] * [H^1 base]^[0,12]'
-  
-  use_precomputed_values: False
+  TWTL task: '[H^1 pickup]^[0,20] * ([H^1 delivery1]^[0,20] | [H^1 delivery2]^[0,20]) * [H^1 base]^[0,20]'
   # '[H^1 r2]^[0,4] * ([H^1 r0]^[0,4] | [H^1 r7]^[0,4]) * [H^0 r2]^[0,4]'
   # '[H^1 pickup]^[0,20] * ([H^1 delivery1]^[0,20] | [H^1 delivery2]^[0,20]) * [H^1 base]^[0,20]'
   # '[H^1 r3]^[0,4] * [H^0 r1]^[1,4]'
@@ -58,13 +52,22 @@ TWTL constraint:
   # You can define region coordinates that will replace the respective name in the TWTL task.
   # You will have issues if one name is a subset of another (i.e. 'base' and 'base2')
   regions:
-    pickup: [2,2,0]
-    delivery1: [3,5,0]
-    delivery2: [5,2,0]
-    delivery3: [0,3,0]
-    base: [0,0,0]
-    reward: [5,0,0]
-
+    pickup: [5,6,0]
+    # 
+    # [0,0,0]
+    # 
+    delivery1: [7,1,0]
+    # 
+    # [0,0,0]
+    # 
+    delivery2: [3,0,0]
+    # 
+    # [0,0,0]
+    # 
+    base: [0,7,0]
+    # 
+    # [0,0,0]
+    # 
 
   # DFA kind can be "infinity" or "normal". Normal 0.is the full automaton and infinity is the relaxed version..
   DFA kind: normal
@@ -73,7 +76,7 @@ TWTL constraint:
   # 
 
   # The probability to which the TWTL task will be enforced
-  desired satisfaction probability: 0.4 #pr_des
+  desired satisfaction probability: 0.5  #pr_des
 
   # The time horizon used when the custom task is set to "None" for a simple pick up and delivery.
   # This is not used if a TWTL task is given
@@ -91,7 +94,28 @@ aug-MDP rewards:
 # The region to reward map used in the static rewards MDP option
 static rewards:
   reward dict: 
-    r30: 5
+    r63: 10
+    # r0: 1
+    # r1: 1
+    # r2: 10
+    # r3: 5
+    # r4: 1
+    # r5: 1
+    # r6: 10
+    # r7: 5
+    # r8: 1
+    # r9: 0
+    # r10: 0
+    # r11: 0
+    # r12: 5
+    # r13: 5
+    # r14: 5
+    # r15: 5
+    # r1: 1
+    # r3: 2
+    # r5: 1
+    # r8: 1
+
 
 
 # The Q-learning configuration section defines parameters for learning the optimal policy according to either STL based rewards for
@@ -99,18 +123,17 @@ static rewards:
 Q-learning config:
 
   # The number of episodes for learning
-  number of episodes: 100000
+  number of episodes: 1000000
 
   # Parameters used in the Q-value update
   learning rate: 0.1
-  discount: 0.9
+  discount: 0.999
 
   # The exploration probability in epison-greedy exploration is decayed as learning proceeds.
   # Exploration probability decay is calculated by solving the following equation: (start * decay^(num_eps - 1) = end)
-  explore probability start: 0.8
-  explore probability end: 0.05
+  explore probability start: 0.4
+  explore probability end: 0.01
 
 test_policy config:
-  use saved policy: False
-  policy_file: 'data/learned_policy_39999.json'
-  number of episodes: 50
+  use saved policy: True
+  number of episodes: 3000
