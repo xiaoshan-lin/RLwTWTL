@@ -135,9 +135,8 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
     max_q = 0
     for ep in tqdm(range(episodes)):
         for t in range(t_init, time_steps+1):
-            if pa.is_accepting_state(z) or z[1] == 'trash':
+            if pa.is_accepting_state(z) or z[1] == 'trash' or pa.opt_s_value[z+(t,)]==0 or t in pa.critical_time:
                 pi_c_trigger = False
-            # print(t,"    TZ       ",z)
             # pruned_actions
             if t < time_steps:
                 pruned_actions = pa.pruned_actions[t][z]
@@ -154,11 +153,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
                 else:                               # Exploit
                     action_chosen = pi[t][z]
                     action_chosen_by = "exploit"
-            #cur_idx = int(z[0][1:])
-            #next_idx = cur_idx + pa.action_to_idx[action_chosen]
-            #next_state = [i for i in pruned_states if int(i[0][1:])==next_idx][0]
-            #print(z,action_chosen,next_state)
-            #print('---')
+
             # Take the action, result may depend on uncertainty
 
             next_z = pa.take_action(z, action_chosen, eps_unc)
@@ -405,11 +400,13 @@ def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, po
     # count sum of rewards
     reward_sum = 0
     pi_c_trigger = False
+    
     for idx in range(iters):
-        # z,_,_ = pa.initial_state_and_time()
+        # z,_,_ = pa.initial_state_and_time() 
+        test_value = []
         for t in range(t_init, time_steps+1):
-            
-            if pa.is_accepting_state(z) or z[1] == 'trash':
+            test_value.append(pa.final_sa_values[z+(t,)][0])
+            if pa.is_accepting_state(z) or z[1] == 'trash' or pa.opt_s_value[z+(t,)]==0 or t in pa.critical_time:
                 pi_c_trigger = False
             reward_sum += pa.reward(z)  
             pruned_actions = pa.pruned_actions[t][z]
@@ -438,7 +435,7 @@ def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, po
                 final_z = z
             mdp_traj.append(pa.get_mdp_state(next_z))
             pas_traj.append(next_z)
-        
+
         pi_c_trigger = False
         if pa.is_accepting_state(final_z):
             twtl_pass_count += 1

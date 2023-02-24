@@ -31,7 +31,7 @@ COLOR_DICT = {
 this_file_path = os.path.dirname(os.path.abspath(__file__))
 
 
-def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
+def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob):
     """
     Create the MDP, Augmented MDP, DFA, and Augmented Product MDP 
 
@@ -167,7 +167,8 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg):
     # =================================
     pa_start_time = timeit.default_timer()
     use_precomputed_values = twtl_cfg['use_precomputed_values']
-    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind, use_precomputed_values)
+    critical_time = twtl_cfg['critical_time']
+    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind, use_precomputed_values, critical_time, des_prob)
     pa = copy.deepcopy(pa_or)	      # copy the pa
     pa_timecost =  timeit.default_timer() - pa_start_time
 
@@ -254,7 +255,7 @@ def main():
     prep_start_time = timeit.default_timer()
 
     # Construct the Product MDP
-    pa = build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg)
+    pa = build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob)
     # Prune it at each time step
     prune_start = timeit.default_timer()
     print("____start pruning____")
