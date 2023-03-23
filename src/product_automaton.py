@@ -41,7 +41,7 @@ class AugPa(lomap.Model):
         self.init_dict = product_model.init
         self.g = product_model.g
         #self.plot_graph(self.g,'productMDP')
-        #self.plot_graph(self.dfa.g,'DFA')
+        self.plot_graph(self.dfa.g,'DFA')
         self.final = product_model.final
         self.idx_to_action = {0:'stay',1:'E',-1:'W',-self.width:'N',self.width:'S',
                               -self.width-1:'NW',-self.width+1:'NE',self.width-1:'SW',self.width+1:'SE'}
@@ -210,6 +210,7 @@ class AugPa(lomap.Model):
             test_neighbors = [(i,0) for i in test_neighbors]
             pruned_actions[t][p] = [self.states_to_action(p,q) for q in test_neighbors]
             self.pi_c[t][p] = self.final_sa_values[ss][1]
+            # print(" __   ",self.final_sa_values[ss][1],ss)
 
         for pp in tqdm(non_accepting_states):
             t = pp[2]
@@ -356,6 +357,7 @@ class AugPa(lomap.Model):
             t = self.time_bound - tt
             #print(t)
             for tpa_s in tpa_transitions:
+                multi_action_maximizer = []
                 if tpa_s[2] == t:
                     opt_sa_value[tpa_s]=dict()
                     if (tpa_s not in Layer_accepting_states) and (tpa_s[1] not in self.dfa.final) and (tpa_s[1] != "trash"):
@@ -367,8 +369,16 @@ class AugPa(lomap.Model):
                             
                             if opt_sa_value[tpa_s][chosen_action] >= self.opt_s_value[tpa_s]:
                                 self.opt_s_value[tpa_s] = opt_sa_value[tpa_s][chosen_action]
-                                final_opt_value_sa[tpa_s] = (self.opt_s_value[tpa_s],chosen_action)
-
+                                #final_opt_value_sa[tpa_s] = (self.opt_s_value[tpa_s],[chosen_action])
+                        
+                        for i in All_Actions[tpa_s]:                         
+                            chosen_action = All_Actions[tpa_s][i][0]
+                            if opt_sa_value[tpa_s][chosen_action] == self.opt_s_value[tpa_s]:
+                                multi_action_maximizer.append(chosen_action)
+                            
+                        final_opt_value_sa[tpa_s] = (self.opt_s_value[tpa_s],multi_action_maximizer)
+                        # print(" ---     ",final_opt_value_sa[tpa_s][1])
+                        # print(" ---     ",tpa_s,"    :   ",multi_action_maximizer,"  ~~~~~   ",random.choice(multi_action_maximizer))
                     elif ((tpa_s in Layer_accepting_states) or (tpa_s[1] in self.dfa.final)):
                         self.opt_s_value[tpa_s] = 1
 

@@ -248,7 +248,7 @@ def main():
     num_episodes_test = test_cfg['number of episodes']
     use_saved_policy =  test_cfg['use saved policy']
     policy_file =  test_cfg['policy_file']
-
+    policy_pic_file =  test_cfg['policy_pic_file']
     # test_gen_time()
 
     # ==== Construct the Pruned Time-Product MDP ====
@@ -277,16 +277,17 @@ def main():
     print('learning with {} episodes'.format(num_episodes))
     timer = timeit.default_timer()
     if not use_saved_policy:
-        pi = ql.Q_learning(pa, num_episodes, eps_unc, learn_rate, discount, explore_prob_decay, explore_prob_start)
+        pi, pi_c = ql.Q_learning(pa, num_episodes, eps_unc, learn_rate, discount, explore_prob_decay, explore_prob_start)
     else:
         pi = None
+        pi_c = None
     qlearning_time = timeit.default_timer() - timer
     print('learning time: {} seconds'.format(qlearning_time))
 
     # ==== test policy ====
     stl_expr = config['aug-MDP rewards']['STL expression']
 
-    ql.test_policy(pi, pa, stl_expr, eps_unc, num_episodes_test, mdp_type, use_saved_policy, policy_file)
+    ql.test_policy(pi, pi_c, pa, stl_expr, eps_unc, num_episodes_test, mdp_type, use_saved_policy, policy_file, policy_pic_file)
 
 
 

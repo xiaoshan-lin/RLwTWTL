@@ -1,4 +1,4 @@
-import os
+import os, time
 import numpy as np
 import random
 from tqdm import tqdm
@@ -75,33 +75,24 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
     init_val = 0
     time_steps = pa.get_hrz()
     qtable = {t:{} for t in range(t_init, time_steps+1)}
-    # print("  ___      ",pa.get_states(),"\n\n")
-    # print("\n\n","  ___ nodes     ",pa.newg.nodes(),"\n\n")
 
     for t in qtable:
         qtable[t] = {q[:2]:{} for q in pa.newg.nodes() if q[:2]+(t,) in pa.newg.nodes()}
-            
-        # print(pa.get_states(),"  ___ q table     ",qtable,"\n\n")
         for p in qtable[t]:
-            # print("\n\n",t,"   #~~~#   ",p,"      ...      ",pa.pruned_actions[t])
             if pa.pruned_actions[t][p] != []:
                 qtable[t][p] = {a:init_val + np.random.normal(0,0.0001) for a in pa.pruned_actions[t][p]}
             else:
-                qtable[t][p] = {pa.pi_c[t][p]:init_val + np.random.normal(0,0.0001)}
+                qtable[t][p] = {a:init_val + np.random.normal(0,0.0001) for a in pa.pi_c[t][p]}
 
-
-    
-    # print("\n\n","  ___ q table     ",qtable,"\n\n")
     # initialize optimal policy pi on pruned time product automaton
     pi = {t:{} for t in qtable}
+    pi_c = {t:{} for t in qtable}
     for t in pi:
         for p in pa.pruned_actions[t]:
-            # print("\n\n",t,"   #~~~#   ",p,"      ...      ",pa.pruned_actions[t],"\n\n")
-            # print(' Q table   {} '.format(qtable[t][p]))
             if pa.pruned_actions[t][p] != []:
                 pi[t][p] = max(pa.pruned_actions[t][p], key=qtable[t][p].get)
-            else:
-                pi[t][p] = pa.pi_c[t][p]
+            if pa.pi_c[t][p] != "true":
+                pi_c[t][p] = max(pa.pi_c[t][p], key=qtable[t][p].get)
   
     # Make an entry in q table for learning initial states and initialize pi
     if pa.is_STL_objective:
@@ -130,11 +121,17 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
     success_counter = 0 
     pi_c_trigger = False
     twtl_pass_count_list = []
-    save_policy_ep = [1,1000,3000,10000,20000,30000,40000,50000,100000,200000,400000,600000,800000,1000000,1200000,1500000,1800000,2000000]
+    save_policy_ep = []
     ave_reward = 0
     max_q = 0
+    d2_count = 0
+    d3_count = 0
     for ep in tqdm(range(episodes)):
+        test_flag_1 = False
+        test_flag_2 = False
+        print_flag = False
         for t in range(t_init, time_steps+1):
+         
             if pa.is_accepting_state(z) or z[1] == 'trash' or pa.opt_s_value[z+(t,)]==0 or t in pa.critical_time:
                 pi_c_trigger = False
             # pruned_actions
@@ -144,15 +141,25 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
                 pruned_actions = [pa.states_to_action(z, neighbor) for neighbor in pa.g.neighbors(z)]
             if pi_c_trigger or pruned_actions == []:
                 pi_c_trigger = True
-                action_chosen = pa.pi_c[t][z]
+                if np.random.uniform() < epsilon:   # Explore
+                    action_chosen = random.choice(pa.pi_c[t][z])
+                else:                               # Exploit
+                    action_chosen = pi_c[t][z]
+                #action_chosen = random.choice(pa.pi_c[t][z])
                 action_chosen_by = 'pi epsilon go'
             else:
                 if np.random.uniform() < epsilon:   # Explore
                     action_chosen = random.choice(pruned_actions)
-                    action_chosen_by = "explore"
+                    action_chosen_by = "exploit"
                 else:                               # Exploit
                     action_chosen = pi[t][z]
                     action_chosen_by = "exploit"
+
+            if z[1] == 32:
+                if z[0] == 'r3':
+                    d3_count += 1
+                elif z[0] == 'r32':
+                    d2_count += 1
 
             # Take the action, result may depend on uncertainty
 
@@ -185,10 +192,14 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
             if new_q > max_q:
                 max_q = new_q
             # Update optimal policy
-            if pa.pruned_actions[t][z] != []: 
+            if action_chosen_by == 'pi epsilon go':
+                pi_c[t][z] = max(pa.pi_c[t][z], key=qtable[t][z].get)
+            elif action_chosen_by == 'exploit':
+                pi[t][z] = max(pruned_actions, key=qtable[t][z].get)    
+            '''if pa.pruned_actions[t][z] != []: 
                 pi[t][z] = max(pruned_actions, key=qtable[t][z].get)
             else:
-                pi[t][z] = pa.pi_c[t][z]
+                pi_c[t][z] = max(pa.pi_c[t][z], key=qtable[t][z].get)'''
 
             # track sum of rewards
             ep_rew_sum += reward
@@ -201,6 +212,8 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
             z = next_z
             if t == time_steps - 1:
                 final_z = z
+        '''if ep>1000:
+            time.sleep(0.1)'''
         pi_c_trigger = False
         epsilon = epsilon * eps_decay
         counter+=1
@@ -217,7 +230,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
         ep_rewards[ep] = ep_rew_sum
         ave_reward += ep_rew_sum
         if rem(ep,500)==0:
-            print(ave_reward/500,max_q,epsilon)
+            print(ave_reward/500,max_q,epsilon, {'d2':d2_count, 'd3':d3_count})
             ave_reward = 0
         ep_rew_sum = 0
 
@@ -234,7 +247,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
             if np.random.uniform() < epsilon:   # Explore
                 possible_init_zs = list(qtable[0][z].keys())
                 init_z = random.choice(possible_init_zs)
-                action_chosen_by = "explore"
+                action_chosen_by = "exploit"
             else:                               # Exploit
                 init_z = pi[0][z]
                 action_chosen_by = "exploit"
@@ -282,7 +295,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
         trajectory_reward_log = init_traj[:]
         init_mdp_traj = [pa.get_mdp_state(p) for p in init_traj]
         
-
+    print(sum(twtl_pass_count_list)/len(twtl_pass_count_list))
     np.save('data/ep_rewards.npy', ep_rewards)
 
 
@@ -296,6 +309,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
         json.dump(twtl_pass_count_list, fp)
 
     save_policy(pi, 'data/learned_policy.json')
+    save_policy(pi_c, 'data/learned_pic_policy.json')
     '''test_pi = {}
     for t in pi:
          test_pi[t] = {str(z):pi[t][z] for z in pi[t]}
@@ -307,7 +321,7 @@ def Q_learning(pa, episodes, eps_unc, learn_rate, discount, eps_decay, epsilon, 
          test_qtable[t] = {str(z):qtable[t][z] for z in qtable[t]}
     with open('data/qtable.json','w') as fp:
         json.dump(test_qtable, fp)
-    return pi
+    return pi, pi_c
 
 def save_policy(pi, file_name):
     test_pi = {}
@@ -316,7 +330,7 @@ def save_policy(pi, file_name):
     with open(file_name,'w') as fp:
         json.dump(test_pi, fp)
 
-def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, policy_file):
+def test_policy(pi, pi_c, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, policy_file, policy_pic_file):
     """
     Test a policy for a certian number of episodes and print 
         * The constraint mission success rate, 
@@ -347,15 +361,23 @@ def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, po
         The TWTL satisfaction rate
     
     """
+    
     # Time complexity is O(t)
     if use_saved_policy:
         if policy_file == None:
            policy_file = 'data/learned_policy.json'
+           policy_pic_file = 'data/learned_pic_policy.json'
         with open(policy_file,'r') as fp:
             data = json.load(fp)
             pi = {}
             for t in data:
                 pi[eval(t)] = {eval(i):data[t][i] for i in data[t]}
+
+        with open(policy_pic_file,'r') as fp:
+            data = json.load(fp)
+            pi_c = {}
+            for t in data:
+                pi_c[eval(t)] = {eval(i):data[t][i] for i in data[t]}
 
     print('Testing optimal policy with {} episodes'.format(iters))
 
@@ -396,7 +418,7 @@ def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, po
     pas_traj = [z for z in init_traj]
     stl_sat_count = 0
     stl_rdeg_sum = 0
-
+    
     # count sum of rewards
     reward_sum = 0
     pi_c_trigger = False
@@ -412,7 +434,7 @@ def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, po
             pruned_actions = pa.pruned_actions[t][z]
             if pi_c_trigger or pruned_actions == []:
                 pi_c_trigger = True
-                action_chosen = pa.pi_c[t][z]
+                action_chosen = pi_c[t][z]
                 action_chosen_by = 'pi epsilon go'
             else:
                 action_chosen_by = 'exploit'
@@ -435,7 +457,8 @@ def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, po
                 final_z = z
             mdp_traj.append(pa.get_mdp_state(next_z))
             pas_traj.append(next_z)
-
+        if idx == 0:
+            test_traj = [i[1] for i in mdp_traj]
         pi_c_trigger = False
         if pa.is_accepting_state(final_z):
             twtl_pass_count += 1
@@ -495,6 +518,10 @@ def test_policy(pi, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_policy, po
             for line in pas_traj_log:
                 log_file.write(line)
                 log_file.write('\n')
+
+        test_traj_log_file = os.path.join(this_file_path, '../plot/trajectory_log_0.txt')
+        with open (test_traj_log_file, 'w') as fo:
+            fo.write(','.join(str(i) for i in test_traj))
 
     twtl_sat_rate = twtl_pass_count/iters
     stl_sat_rate = stl_sat_count/iters

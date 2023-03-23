@@ -10,10 +10,11 @@ import random
 from tqdm import tqdm
 import os
 from scipy.optimize import linprog
+from check_init_value import check_init_value
 
 class AugPa(lomap.Model):
 
-    def __init__(self, aug_mdp, dfa, time_bound, width, height, dfa_kind):
+    def __init__(self, aug_mdp, dfa, time_bound, width, height, dfa_kind, use_precomputed_values, critical_time, des_prob):
         # aug_mdp is an augmented mdp such as a tau-mdp or flag-mdp
         # dfa is generated from a twtl constraint
         # time_bound is both the time bound of the twtl task, and the time horizon of the STL constraint
@@ -28,12 +29,19 @@ class AugPa(lomap.Model):
         self.is_STL_objective = not (aug_mdp.name == 'Static Reward MDP')
         self.width = width
         self.height = height
+        self.std_ql = False
+        self.use_precomputed_values = use_precomputed_values 
+        self.critical_time = critical_time
+        self.sub_des_prob = {i:des_prob**(1/len(self.critical_time)) for i in self.critical_time}
+        self.sub_init_value = {i:0 for i in self.critical_time}
         
         # generate
         # Following has O(xda*2^|AP|) worst case. O(xd) for looping through all PA states * O(a * 2^|AP|) for adjacent MDP and DFA states
         product_model,_,_ = synth.modified_ts_times_fsa(aug_mdp, dfa, self.time_bound)
         self.init_dict = product_model.init
         self.g = product_model.g
+        #self.plot_graph(self.g,'productMDP')
+        #self.plot_graph(self.dfa.g,'DFA')
         self.final = product_model.final
         self.idx_to_action = {0:'stay',1:'E',-1:'W',-self.width:'N',self.width:'S',
                               -self.width-1:'NW',-self.width+1:'NE',self.width-1:'SW',self.width+1:'SE'}
@@ -63,6 +71,16 @@ class AugPa(lomap.Model):
 
         # allow caller to compute energy so it can be timed
         self.energy_dict = None
+
+    def plot_graph(self, graph, fname):
+        uwnew = nx.nx_agraph.to_agraph(graph)
+        uwnew.layout(prog='dot')
+        path = 'output/DFA-outputs'
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        uwnew.draw('output/DFA-outputs/{}.png'.format(fname))
+        print('done')
+        #time.sleep(2)
 
     def _gen_null_states(self):
         null_pa_states = []
@@ -132,260 +150,118 @@ class AugPa(lomap.Model):
     def get_energy(self, pa_state):
         return self.energy_dict[pa_state]
 
-    def time_product_mdp(self):
-        
+    def time_product_mdp(self):     
         ep_len = self.time_bound
         ygraph,pp,new_TPMDP = synth.modified_ts_times_fsa(self.aug_mdp, self.dfa, self.time_bound)
-        # new_graph = ygraph.g
-        # new_time_transitions = [nx.convert.to_dict_of_lists(new_graph) for _ in range(ep_len)]
-        
-        '''
-        TPMDP = nx.DiGraph()
-        
-        
-
-        
-        # print("     @@@@@@@@@@@@@@@@@@      " , pp)
-        
-
-        
-        time_transitions = [nx.convert.to_dict_of_lists(self.g) for _ in range(ep_len)]
-        # time_transitions[0].add(0)
-        # print("________________________________","\n", time_transitions)
-        # print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT","\n", new_time_transitions)
-
-        for t in range(ep_len):
-            # print("~~~~~~~~    OLD ~~~~~~~~~~~~~~~~~~~~~~~~","\n", time_transitions[t])
-
-            for p in time_transitions[t].items():
-                y = list(p[0])
-                y.append(t)
-                # print(" t  ====  ",t,"    ",y,"   ",p[1],"     ****    ")
-            # for p in time_transitions[t]:
-                # e.append(list((time_transitions[t][p])+t))
-                # print(" ====    ====    ====    ",e,"\n")
-        for t in range(ep_len):
-            # print("~~~~~~~~~    NEW ~~~~~~~~~~~~~~~~~~~~~~~","\n", new_time_transitions[t])
-
-            for p in new_time_transitions[t].items():
-                # print(p[0],"     ****    ")
-                # s_mdp = self.get_mdp_state(p[0])
-                # s_dfa = 0
-                # rf = self.dfa_org.next_states_of_fsa(s_dfa, s_mdp)
-                # print(p[0],"            ",s_mdp,rf,"    **  ")
-                y = list(p[0])
-                y.append(t)
-                # print("  NEW   TR t  ====  ",t,"    ",y,"   ",p[1],"     ****    ")
-            # for p in time_transitions[t]:
-                # e.append(list((time_transitions[t][p])+t))
-                # print(" ====    ====    ====    ",e,"\n")
-
-        for t in range(ep_len):
-            for p in time_transitions[t].items():
-                a=list(p[0])
-                a.append(t)
-                TPMDP.add_node(tuple(a))
-                bp=list(p[1])
-                # print( "  OLD   ###       ",range(len(bp)),"   ><><>    ",type(bp),"    ",bp,"    ",a)
-                for i in range(len(bp)):
-                    b = list(bp[i])
-                    b.append(t+1)
-                    TPMDP.add_node(tuple(b))
-                    # print(tuple(a),tuple(b))
-                    TPMDP.add_edge(tuple(a),tuple(b))
-        # print("   OLD      $$$$$$               ###             ",TPMDP.edges)
-        
-        uw = nx.nx_agraph.to_agraph(TPMDP)
-        uw.layout(prog='dot')
-        path = '../output/DFA-outputs'
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        uw.draw('../output/DFA-outputs/Original_TPMDP.png')
-        '''
-        
-        # for t in range(ep_len):
-        #     print("#######      ",new_time_transitions[t].items())
-        #     for p in new_time_transitions[t].items():
-                
-        #         a=list(p[0])
-                
-        #         a.append(t)
-        #         print(tuple(a))
-        #         new_TPMDP.add_node(tuple(a))
-        #         bp=list(p[1])
-        #         # print( "  NEW   ###       ",range(len(bp)),"   ><><>    ",type(bp),"    ",bp,"    ",a)
-        #         for i in range(len(bp)):
-        #             b = list(bp[i])
-        #             b.append(t+1)
-        #             new_TPMDP.add_node(tuple(b))
-        #             # print(tuple(a),tuple(b))
-        #             new_TPMDP.add_edge(tuple(a),tuple(b))
-        # # print("   NEW      $$$$$$               ###            ",new_TPMDP.edges)
-        # print("++")
         copy_new_graph = new_TPMDP.copy()
-        # print(1)
-        # propper_init = [(p, 0, 0) for p in self.aug_mdp.g.nodes]
-        # propper_init = [(p[0], p[1], 0) for p in pp]
-        # # print(propper_init,"            !!!!        ")
-        # propper_nodes = set()
-        # global samsam
-        # samsam = []
-        # # print(2)
-        # for i in range(len(propper_init)):
-        #     # PATHS = self.find_all_paths(copy_new_graph, propper_init[i], path=[],final_p=[])
-        #     self.find_all_paths(copy_new_graph, propper_init[i], path=[])
-        # # print("         ~~~~            " , samsam)
-        # # print(3)
-        # # print("\n","    *  *  *    ",final_path)
-        # for i in samsam:
-        #     # print("\n","       ******   ",i,"   ******       ")
-        #     for j in i:
-        #             # print("\n","+++++           ",j)
-        #             propper_nodes.add(j)
-        #             # print(set(i),"\n",set(j))
-        # # print(4)
-        # list_propper_nodes = list(propper_nodes)
-        # # print("\n","+++++           ",list_propper_nodes)
-        # list_redundant_nodes = copy_new_graph.nodes - list_propper_nodes
-        # # print("\n","-----           ",list_redundant_nodes)
-        # copy_new_graph.remove_nodes_from(list_redundant_nodes)
-        # print("--")
-        '''
-        #progressed graph without pruning
-        uwnew = nx.nx_agraph.to_agraph(new_TPMDP)
-        uwnew.layout(prog='dot')
-        path = '../output/DFA-outputs'
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        uwnew.draw('../output/DFA-outputs/Unpruned_wp_TPMDP.png')
-        '''
-        
-
-
-        ##################################
-        # print(" drawing graph   ")
-        # #progressed graph with pruning
-        # uwwnew = nx.nx_agraph.to_agraph(copy_new_graph)
-        # uwwnew.layout(prog='dot')
-        # path = '../output/DFA-outputs'
-        # if not os.path.isdir(path):
-        #     os.mkdir(path)
-        # uwwnew.draw('../output/DFA-outputs/Pruned_wp_TPMDP.png')
-
-        # print(" done with drawing graph   ")
-        
-
         tpmdp_transitions = nx.convert.to_dict_of_lists(copy_new_graph)
-
-        # print("\n","    ##    ",tpmdp_transitions)
         self.newg = copy_new_graph
-        
 
         return tpmdp_transitions
     
-    def prune_actions(self, eps_uncertainty, des_prob):    
-        
-        
-        self.back_propagation(eps_uncertainty, des_prob)
-        # print("prune_action")
+    def prune_actions(self, eps_uncertainty, des_prob):  
+
+        self.back_propagation(eps_uncertainty)
+        #check_init_value(des_prob)
+        max_value_list = list(self.sub_init_value.values())
+        sub_prob_list = list(self.sub_des_prob.values())
+        print(max_value_list)
+        print(sub_prob_list)
+        if sum(list(np.array(max_value_list) - np.array(sub_prob_list) >= 0)) < len(self.critical_time):
+            print("assumption not hold")
+            time.sleep(2)
+                    
         ep_len = self.time_bound
         self.pi_c = {t:{} for t in range(ep_len + 1)}
         # initialize actions of time product MDP
-        pruned_states_tpmdp = [nx.convert.to_dict_of_lists(self.newg) for _ in range(ep_len + 1)]
-        #print("   ~~~    pruned_states_tpmdp  ",pruned_states_tpmdp)
-        #pruned_actions_tpmdp = {t:{p[:2]:[] for p in self.newg.nodes()} for t in range(ep_len + 1)}
+        pruned_states_tpmdp = [nx.convert.to_dict_of_lists(self.newg) for _ in range(ep_len + 1)]       
         pruned_actions_tpmdp = {t:{} for t in range(ep_len + 1)}
         for t_p in self.newg.nodes():
             pruned_actions_tpmdp[t_p[2]][t_p[0:2]]=[]
-        # print("    ~~~~~~ pruned initial          ",pruned_actions_tpmdp )
-
-        # print("\n\n\n",pruned_states_tpmdp,"\n\n\n\n")
+        
         pruned_actions = pruned_actions_tpmdp
         pruned_states = []
-        for i in pruned_states_tpmdp:
-            # print("   ~~~    i  ",i,"\n\n")
+        for i in pruned_states_tpmdp:          
             dic = dict()
             for s in i:
-                # print('   this is s   {}'.format(s))
                 if s[1] != "trash":
                     dic[s[:2]] = [j[:2] for j in i[s]]
                     
                 else:
                     dic[s[:2]] = ["trash"]
             pruned_states.append(dic)
-        # print("\n\n", " %_ **********  ",pruned_states)
-        # print("\n\n", " %_ ..........  ",pruned_actions)
-            
-        # print(pruned_actions_tpmdp,"\n",pruned_states_tpmdp,"\n")
 
         # create set of non-accepting states
         accepting_states = []
         for n in self.newg.nodes:
             if n[1] in self.dfa.final:
                 accepting_states.append(n)
-        # print(" **   *      ",accepting_states)
-        # print("\n\n"," ##   ", pruned_states,"         __ ",accepting_states, len(pruned_actions_tpmdp))
+        
         non_accepting_states = list(pruned_states_tpmdp[0].keys())
         for s in pruned_states_tpmdp[0].keys():
             if s[1] in self.dfa.final:
                 # print(s)
                 non_accepting_states.remove(s)
-        # print(" **   *      ",non_accepting_states)
-        # print(pruned_states_tpmdp[0].keys(),"\n\n","     #######     ", non_accepting_states)
 
         for ss in accepting_states:
             t = ss[2]
             p = ss[:2]
-            # print(t,"  ~~~    ",s)
             test_neighbors = self.aug_mdp.g.neighbors(p[0])
             test_neighbors = [(i,0) for i in test_neighbors]
             pruned_actions[t][p] = [self.states_to_action(p,q) for q in test_neighbors]
             self.pi_c[t][p] = self.final_sa_values[ss][1]
 
         for pp in tqdm(non_accepting_states):
-            # print(pp)
             t = pp[2]
             p = pp[:2]
-            self.pi_c[t][p] = self.final_sa_values[pp][1]
-            if pp[1] != "trash":
-                '''
-                next_ps = pruned_states[t][p][:]
-                # print("   nps    ",next_ps)
-                for next_p in next_ps:
-                    # print(self.states_to_action(p,next_p),"   ...  np    ",next_p)
-                    # print("   !!!!    ",self.opt_sa_value[pp])
-                    if self.opt_sa_value[pp][self.states_to_action(p,next_p)] < des_prob:
-                        # print(self.opt_sa_value[pp][self.states_to_action(p,next_p)],"   !!!!    ",des_prob)
-                        pruned_states[t][p].remove(next_p)
-
-                if pruned_states[t][p] == []:                   
-                    #self.final_sa_values[p] is the closest optimization value to des_prob determined from state p
-                    # print(pruned_states[t][p],pp,"      ....      ",t,"        TP        ",self.final_sa_values[pp],self.final_sa_values[pp][1],self.take_action(p, self.final_sa_values[pp][1], -1))
-                    pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
-                    
-
-                # print(t,p)
-                # print(pruned_states[t][p])
-                pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
-                '''
-                next_ps = pruned_states[t][p][:]
-                for next_p in next_ps:
-                    next_states = self.get_low_prob_neighbors(p,next_p)
-                    next_states.append(next_p)
-                    for nn in next_states:
-                        if self.final_sa_values[nn+(t+1,)][0] < des_prob:
-                            pruned_states[t][p].remove(next_p)
-                            break
-                if pruned_states[t][p] == []:
-                    # pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
-                    pass
-                    
-
-                pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
-            else:
+            if self.std_ql:
                 test_neighbors = self.aug_mdp.g.neighbors(p[0])
                 test_neighbors = [(i,0) for i in test_neighbors]
-                pruned_actions[t][p] = [self.states_to_action(p, neighbor) for neighbor in test_neighbors]
+                pruned_actions[t][p] = [self.states_to_action(p,q) for q in test_neighbors]
+
+            else:
+                self.pi_c[t][p] = self.final_sa_values[pp][1]
+                if pp[1] != "trash" and self.opt_s_value[pp]!=0:
+                    '''
+                    next_ps = pruned_states[t][p][:]
+                    # print("   nps    ",next_ps)
+                    for next_p in next_ps:
+                        # print(self.states_to_action(p,next_p),"   ...  np    ",next_p)
+                        # print("   !!!!    ",self.opt_sa_value[pp])
+                        if self.opt_sa_value[pp][self.states_to_action(p,next_p)] < des_prob:
+                            # print(self.opt_sa_value[pp][self.states_to_action(p,next_p)],"   !!!!    ",des_prob)
+                            pruned_states[t][p].remove(next_p)
+
+                    if pruned_states[t][p] == []:                   
+                        #self.final_sa_values[p] is the closest optimization value to des_prob determined from state p
+                        # print(pruned_states[t][p],pp,"      ....      ",t,"        TP        ",self.final_sa_values[pp],self.final_sa_values[pp][1],self.take_action(p, self.final_sa_values[pp][1], -1))
+                        pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
+                        
+                    # print(t,p)
+                    # print(pruned_states[t][p])
+                    pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
+                    '''
+                    next_ps = pruned_states[t][p][:]
+                    for next_p in next_ps:
+                        next_states = self.get_low_prob_neighbors(p,next_p)
+                        next_states.append(next_p)
+                        for nn in next_states:
+                            if t+1 not in self.critical_time:
+                                next_value = self.final_sa_values[nn+(t+1,)][0]
+                            else:
+                                next_value = int(self.opt_s_value[nn+(t+1,)]>=self.sub_des_prob[t+1])
+                            # critical_time_idx = 
+                            if next_value < des_prob**(1/len(self.critical_time)):
+                                pruned_states[t][p].remove(next_p)
+                                break
+                    if pruned_states[t][p] == []:
+                        # pruned_states[t][p] = [self.take_action(p, self.final_sa_values[pp][1], -1)]
+                        pass
+                    pruned_actions[t][p] = [self.states_to_action(p,q) for q in pruned_states[t][p]]
+                else:
+                    test_neighbors = self.aug_mdp.g.neighbors(p[0])
+                    test_neighbors = [(i,0) for i in test_neighbors]
+                    pruned_actions[t][p] = [self.states_to_action(p, neighbor) for neighbor in test_neighbors]
 
         for pp in self.newg.nodes():
             p = pp[:2]
@@ -393,10 +269,7 @@ class AugPa(lomap.Model):
             test_neighbors = [(i,0) for i in test_neighbors]
             if p+(ep_len,) in self.newg.nodes():
                 pruned_actions[ep_len][p] = [self.states_to_action(p, neighbor) for neighbor in test_neighbors]
-        # print("\n\n","      ##   ps     ",pruned_states)
-        # print("\n\n","      ##   pa     ",pruned_actions)
-
-        #print(self.pi_c)
+        
         self.pruned_states = pruned_states
         self.pruned_actions = pruned_actions
         test_dict = {}
@@ -406,9 +279,9 @@ class AugPa(lomap.Model):
         with open('data/prune_actions.txt', 'w') as convert_file:
             convert_file.write(json.dumps(test_dict))
 
-    def back_propagation(self, eps_uncertainty, des_prob):
+    def back_propagation(self, eps_uncertainty):
         tpa_transitions = self.time_product_mdp()
-        use_precomputed_values = True
+        use_precomputed_values = self.use_precomputed_values
         if use_precomputed_values:          
             with open('data/final_sa_values.txt', 'r') as fp:
                 data = json.load(fp)
@@ -436,91 +309,65 @@ class AugPa(lomap.Model):
 
             return
 
-        # print("start bp")
         accepting_states = self.final
-        #print(accepting_states)
-        #  extracting one minus epsilon transtions for each state action pair
-        # tpa_transitions is same as tpmdp_transitions which is all tpmdp graph transitions after pruning the redundnet states
-        # print("create tpmdp")
         
-        Feasible_Actions = dict()
         All_Actions = dict()
-        time.sleep(2)
         time_1 = time.time()
-        for t in range(self.time_bound):
-            for tpa_s in tpa_transitions:
-                if tpa_s[2] == t:
-                    pass
-        print('test for loop:{}'.format(time.time()-time_1)) 
+        
         for t in range(self.time_bound):
             for tpa_s in tpa_transitions:
                 if tpa_s[2] == t:
                     s = tpa_s[:2]
-                    Feasible_Actions[tpa_s] = dict()
                     All_Actions[tpa_s] = dict()
-                    # available_actions = pruned_actions[t][s]
                     available_actions = self.all_possible_actions(s)
-                    # print("_______ a __   ",available_actions)
                     for i in range(len(available_actions)):
                         a = available_actions[i]
                         OME_state = self.all_possible_transition(s, a)
-                        Feasible_Actions[tpa_s][i] = (available_actions[i],OME_state)
                         # Choose next state from possible low probability states
                         epsilon_transitions = [p+(t+1,) for p in self.get_low_prob_neighbors(s,OME_state)]
                         epsilon_transitions.append(OME_state+(t+1,))
                         All_Actions[tpa_s][i] = (available_actions[i],epsilon_transitions)
-                        # print(tpa_s,"    **       ",All_Actions[tpa_s][i])
         print('first for loop:{}'.format(time.time()-time_1)) 
         time_2 =  time.time()           
-        # print("\n","     Feasible     ", Feasible_Actions)
-        # print("\n","     All possible     ", All_Actions)
-        # print("\n"," Accepted states  ",accepting_states)
 
         final_opt_value_sa = dict()
 
         Layer_accepting_states=[]
-        for t in reversed(range(self.time_bound)):
-            # print("^^^     ", t)
+        '''for t in reversed(range(self.time_bound)):
             for tpa_s in tpa_transitions:
-                # print(" ~~~~~~~~~~~~~~~~~~~~   new    ",tpa_s)
+                print()
                 if tpa_s[2] == t :
                     for i in All_Actions[tpa_s]:
-                        # print("   ~~   ",All_Actions[tpa_s][i][0],All_Actions[tpa_s][i][1],len(All_Actions[tpa_s][i][1]))
                         a_counter=0
                         for j in All_Actions[tpa_s][i][1]:
                             if (j[:2] in accepting_states) or (j in Layer_accepting_states):
-                                # print(tpa_s," // ",All_Actions[tpa_s][i][1],"   j =  ._.__.___  ",j[:2],"  ",j)
                                 a_counter = a_counter+1
                         if a_counter == 4: # the number of actions is at max 4
                             Layer_accepting_states.append((tpa_s,All_Actions[tpa_s][i][0]))
-                            final_opt_value_sa[tpa_s] = (1.0,All_Actions[tpa_s][i][0])
-        print('second for loop:{}'.format(time.time()-time_2)) 
+                            final_opt_value_sa[tpa_s] = (1.0,All_Actions[tpa_s][i][0])'''
+        print('second for loop:{}'.format(time.time()-time_2))
         self.tpa_layer_accepting_states = Layer_accepting_states
-        # print("\n","     Layer_accepting_states    ",Layer_accepting_states,"\n")
         
         opt_sa_value = dict()
         self.opt_s_value = dict()
         time_3 = time.time()
-        for tt in tqdm(range(self.time_bound)):
-            t = self.time_bound - tt -1
+        print(self.time_bound)
+        for tt in tqdm(range(self.time_bound+1)):
+            t = self.time_bound - tt
+            #print(t)
             for tpa_s in tpa_transitions:
                 if tpa_s[2] == t:
                     opt_sa_value[tpa_s]=dict()
                     if (tpa_s not in Layer_accepting_states) and (tpa_s[1] not in self.dfa.final) and (tpa_s[1] != "trash"):
                         self.opt_s_value[tpa_s] = 0
-                        # print(All_Actions[tpa_s])
-                        for i in All_Actions[tpa_s]:
-                            # print("________    ",    i)
+                        for i in All_Actions[tpa_s]:                         
                             chosen_action = All_Actions[tpa_s][i][0]
-                            # print(tpa_s,chosen_action,"  .  ",All_Actions[tpa_s][i])
                             self.tpa_opt_temprory_states = All_Actions[tpa_s][i][1]
                             opt_sa_value[tpa_s][chosen_action] = self.sa_pair_opt(eps_uncertainty, tpa_s, chosen_action)
-                            # print("... value:   ", opt_sa_value[tpa_s][chosen_action])
                             
                             if opt_sa_value[tpa_s][chosen_action] >= self.opt_s_value[tpa_s]:
                                 self.opt_s_value[tpa_s] = opt_sa_value[tpa_s][chosen_action]
                                 final_opt_value_sa[tpa_s] = (self.opt_s_value[tpa_s],chosen_action)
-
 
                     elif ((tpa_s in Layer_accepting_states) or (tpa_s[1] in self.dfa.final)):
                         self.opt_s_value[tpa_s] = 1
@@ -534,15 +381,9 @@ class AugPa(lomap.Model):
             elif (tpa_s[1] in self.dfa.final):
                 final_opt_value_sa[tpa_s] = (1.0,"true")
 
-        # print("_______      ",self.opt_s_value,"\n\n")
-        # print("____++++___      ",opt_sa_value,"\n\n")
-        # print("\n\n",len(final_opt_value_sa),"____@@@@___      ",final_opt_value_sa,"\n\n")
-        # print(final_opt_value_sa[('r3', 3, 1)][0])file_name = ['value_old.txt','data/final_sa_values.txt','data/opt_sa_value.txt']
         self.final_sa_values = final_opt_value_sa
-        # print("\n\n","  opt*       ",opt_sa_value)
         self.opt_sa_value = opt_sa_value 
-        
-        
+           
         file_name = ['value_old.txt','data/final_sa_values.txt','data/opt_sa_value.txt']
         dict_list = [self.opt_s_value, self.final_sa_values, self.opt_sa_value]
         condition = [True, False, False]
@@ -561,20 +402,28 @@ class AugPa(lomap.Model):
             with open(f, 'w') as convert_file:
                 json.dump(list_list[idx], convert_file)
 
-    def sa_pair_opt_value(self, eps_uncertainty, s):
-        if (s in self.tpa_layer_accepting_states) or (s[1] in self.dfa.final):
+    def sa_pair_opt_value(self, s):
+        '''if (s in self.tpa_layer_accepting_states) or (s[1] in self.dfa.final):
+            if self.opt_s_value[s] !=1:
+                print(self.opt_s_value[s],1)
             return 1
         elif (s[1] == "trash"):
-            return 0
-        else:
+            if self.opt_s_value[s] !=0:
+                print(self.opt_s_value[s],0)
+            return 0'''
+        if s[2] not in self.critical_time:
             return self.opt_s_value[s]
+        else:
+            t_value = int(self.opt_s_value[s]>=self.sub_des_prob[s[2]])    
+            if self.opt_s_value[s] > self.sub_init_value[s[2]]:
+                self.sub_init_value[s[2]] = self.opt_s_value[s]              
+            return t_value
 
     def sa_pair_opt(self, eps_uncertainty, s, a):
         # print("  @    ",s,a)
         obj = []
         for i in self.tpa_opt_temprory_states:
-            # print(".    ",i,"       ",self.sa_pair_opt_value(eps_uncertainty,i))
-            obj.append(self.sa_pair_opt_value(eps_uncertainty,i))
+            obj.append(self.sa_pair_opt_value(i))
 
         if sum(obj) == 0:
             return 0
@@ -626,7 +475,8 @@ class AugPa(lomap.Model):
         
         # for verifying next_state
         # next_state = [i for i in self.pruned_states[t][s] if int(i[0][1:])==next_idx][0]
-
+        oob = ['r6','r11','r13','r15','r16','r17','r18']
+        oob = []
         match self.aug_mdp.name:
             case "Static Reward MDP":
                 cur_idx = int(s[0][1:])
@@ -647,6 +497,9 @@ class AugPa(lomap.Model):
         ts_prop = self.aug_mdp.g.nodes[next_aug_mdp_s].get('prop',set())
         fsa_next_state = self.dfa.next_states_of_fsa(s[1], ts_prop)[0]
         next_s = (next_aug_mdp_s, fsa_next_state)
+        if self.get_mdp_state(next_s) in oob:
+            print(self.get_mdp_state(next_s))
+            print('intended transition wrong')
 
         if np.random.uniform() > uncertainty:
             return next_s
@@ -659,6 +512,8 @@ class AugPa(lomap.Model):
 
             # Choose from low probability states
             next_s = random.choice(low_prob_states)
+            if self.get_mdp_state(next_s) in oob:
+                print('low prob states wrong')
             return next_s
 
     def get_low_prob_neighbors(self, s1, s2):
@@ -740,8 +595,8 @@ class AugPa(lomap.Model):
         return z, t_init, init_traj
 
     def reward(self, pa_s, beta = 2):
-        std_ql = True
-        if not std_ql:
+        
+        if not self.std_ql:
             aug_mdp_s = pa_s[0]
             try:
                 rew = self.reward_cache[(aug_mdp_s,beta)]

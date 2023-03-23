@@ -28,7 +28,7 @@ environment:
   # The overestimated action uncertainty is used in pruning actions to enforce the constraint.
   # The over estimated action uncertainty should be greater than the real action uncertainty.
   real action uncertainty: 0.03 #don't change
-  over estimated action uncertainty: 0.03 # e_est
+  over estimated action uncertainty: 0.08 # e_est
 
   # Obstacles states defined in the following list will be removed from the MDP such that they can't be visited.
   # obstacles: []
@@ -49,6 +49,7 @@ TWTL constraint:
   # TWTL task: '[H^1 pickup]^[0,6] * [H^1 delivery1]^[0,5] * [H^1 delivery2]^[0,5] * [H^1 base]^[0,12]'
   
   use_precomputed_values: False
+  # critical_time: [35]
   critical_time: [8,15,22,35]
   # '[H^1 r2]^[0,4] * ([H^1 r0]^[0,4] | [H^1 r7]^[0,4]) * [H^0 r2]^[0,4]'
   # '[H^1 pickup]^[0,20] * ([H^1 delivery1]^[0,20] | [H^1 delivery2]^[0,20]) * [H^1 base]^[0,20]'
@@ -75,7 +76,7 @@ TWTL constraint:
   # 
 
   # The probability to which the TWTL task will be enforced
-  desired satisfaction probability: 0.7 #pr_des
+  desired satisfaction probability: 0.9 #pr_des----
 
   # The time horizon used when the custom task is set to "None" for a simple pick up and delivery.
   # This is not used if a TWTL task is given
@@ -102,18 +103,19 @@ static rewards:
 Q-learning config:
 
   # The number of episodes for learning
-  number of episodes: 1500000
+  number of episodes: 1000000
 
   # Parameters used in the Q-value update
   learning rate: 0.1
-  discount: 0.9
+  discount: 0.99
 
   # The exploration probability in epison-greedy exploration is decayed as learning proceeds.
   # Exploration probability decay is calculated by solving the following equation: (start * decay^(num_eps - 1) = end)
-  explore probability start: 0.8
+  explore probability start: 0.6
   explore probability end: 0.05
 
 test_policy config:
-  use saved policy: False
+  use saved policy: True
   policy_file: 'data/learned_policy.json'
-  number of episodes: 500
+  policy_pic_file: 'data/learned_pic_policy.json'
+  number of episodes: 10000
