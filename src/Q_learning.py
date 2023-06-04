@@ -519,9 +519,9 @@ def test_policy(pi, pi_c, pa, stl_expr, eps_unc, iters, mdp_type, use_saved_poli
                 log_file.write(line)
                 log_file.write('\n')
 
-        test_traj_log_file = os.path.join(this_file_path, '../plot/trajectory_log_0.txt')
+        '''test_traj_log_file = os.path.join(this_file_path, '../plot/trajectory_log_0.txt')
         with open (test_traj_log_file, 'w') as fo:
-            fo.write(','.join(str(i) for i in test_traj))
+            fo.write(','.join(str(i) for i in test_traj))'''
 
     twtl_sat_rate = twtl_pass_count/iters
     stl_sat_rate = stl_sat_count/iters
