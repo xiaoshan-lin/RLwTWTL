@@ -1,4 +1,3 @@
-
 import create_environment as ce
 import timeit
 import yaml
@@ -63,7 +62,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob):
     if one_way != None:
         for i in one_way:
             one_way_dict[int(i[1:])] = int(one_way[i][1:])
-        print(one_way_dict)
 
     def xy_to_region(x,y,z):
         # x is down, y is across

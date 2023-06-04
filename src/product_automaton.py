@@ -25,7 +25,7 @@ class AugPa(lomap.Model):
         self.kind = dfa_kind
         self.time_bound = time_bound
         self.reward_cache = {}
-        self.is_STL_objective = not (aug_mdp.name == 'Static Reward MDP')
+        self.is_STL_objective = False
         self.width = width
         self.height = height
         self.std_ql = False
