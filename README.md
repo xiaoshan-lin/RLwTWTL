@@ -32,8 +32,7 @@
    ```
 4. Run the codes
    ```bash
-   cd src
-   python main.py # Run Q-learning to learn a policy 
+   python src/main.py # Run Q-learning to learn a policy 
    python plot_route.py # Run an animation
    ```
 5. To deactivate the virtual environment
