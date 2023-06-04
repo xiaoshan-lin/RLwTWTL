@@ -108,7 +108,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob):
         #TODO: 3rd dim?
         pos = ((num // n) + 0.5, (num % n) + 0.5, 0.5)
         state_to_pos[s] = {d:p for d,p in zip(dims, pos)}
-    # stl.set_ts_sig_dict(state_to_pos)
     
     ts_timecost =  timeit.default_timer() - ts_start_time
 
@@ -125,14 +124,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob):
         save_dfa(dfa)
         
     dfa_timecost =  timeit.default_timer() - dfa_start_time
-
-    # uwq = nx.nx_agraph.to_agraph(dfa.g)
-    # uwq.layout(prog='dot')
-    # path = '../output/DFA-outputs'
-    # if not os.path.isdir(path):
-    #     os.mkdir(path)
-    # uwq.draw('../output/DFA-outputs/dfa.png')
-
 
     # =================================
     # Augmented MDP Creation
@@ -166,9 +157,8 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob):
     # Augmented Product MDP Creation
     # =================================
     pa_start_time = timeit.default_timer()
-    use_precomputed_values = twtl_cfg['use_precomputed_values']
     critical_time = twtl_cfg['critical_time']
-    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind, use_precomputed_values, critical_time, des_prob)
+    pa_or = AugPa(aug_mdp, dfa, dfa_horizon, n, m, kind, critical_time, des_prob)
     pa = copy.deepcopy(pa_or)	      # copy the pa
     pa_timecost =  timeit.default_timer() - pa_start_time
 
@@ -185,7 +175,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob):
     print('##### PICK-UP and DELIVERY MISSION #####' + "\n")
     print('Initial Location  : ' + str(init_state) + ' <---> Region ' + str(init_state_num))
     print(dfa_print_string)
-    # print('Reward Locations  : ' + str(rewards) + ' <---> Regions ' + str(rewards_ts_indexes) + "\n")
     print('State Matrix : ')
     print(state_mat)
     print("\n")
@@ -194,7 +183,6 @@ def build_environment(env_cfg, twtl_cfg, mdp_type, reward_cfg, des_prob):
     print('Time Cost:')
     print('TS creation time (s):            {:<7}'.format(ts_timecost))
     print('Augmented MDP creation time (s): {:<7}'.format(aug_mdp_timecost))
-    # print('			TS created in ' + str(ts_timecost) + ' seconds')
     print('DFA creation time (s):           {:<7}'.format(dfa_timecost))
     print('PA creation time (s):            {:<7}'.format(pa_timecost))
     print('PA energy calculation time (s):  {:<7}'.format(energy_timecost))
@@ -249,7 +237,6 @@ def main():
     use_saved_policy =  test_cfg['use saved policy']
     policy_file =  test_cfg['policy_file']
     policy_pic_file =  test_cfg['policy_pic_file']
-    # test_gen_time()
 
     # ==== Construct the Pruned Time-Product MDP ====
     prep_start_time = timeit.default_timer()
@@ -273,7 +260,6 @@ def main():
     print('')
 
     # ==== Find the optimal policy ====
-    # exit()
     print('learning with {} episodes'.format(num_episodes))
     timer = timeit.default_timer()
     if not use_saved_policy:

@@ -48,7 +48,6 @@ TWTL constraint:
   TWTL task: '[H^1 pickup]^[0,8] * [H^1 delivery1]^[0,6] * ([H^1 delivery2]^[0,6] | [H^1 delivery3]^[0,6]) * [H^1 base]^[0,12]'
   # TWTL task: '[H^1 pickup]^[0,6] * [H^1 delivery1]^[0,5] * [H^1 delivery2]^[0,5] * [H^1 base]^[0,12]'
   
-  use_precomputed_values: False
   # critical_time: [35]
   critical_time: [8,15,22,35]
   # '[H^1 r2]^[0,4] * ([H^1 r0]^[0,4] | [H^1 r7]^[0,4]) * [H^0 r2]^[0,4]'
