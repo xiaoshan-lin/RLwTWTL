@@ -5,7 +5,23 @@
 **Authors:** Xiaoshan Lin, Abbasali Koochakzadeh, Levi Vande Kamp
 
 **News:** 
-  - **Jun. 3, 2023**: Our paper **Reinforcement Learning Under Probabilistic Spatio-Temporal Constraints with Time Windows** is under review for IROS 2023.
+  - **Mar. 3, 2023**: Our paper **Reinforcement Learning Under Probabilistic Spatio-Temporal Constraints with Time Windows** is under review for IROS 2023.
+  - **Jun. 21, 2023**: Our paper is accepted by IROS 2023.
+
+---
+**NOTE** If you use our work in academic research, please cite our paper:
+
+```
+@inproceedings{lin2023reinforcement,
+title={Reinforcement learning under probabilistic spatio-temporal constraints with time windows},
+author={Lin, Xiaoshan and Koochakzadeh, Abbasali and Yaz{\i}c{\i}o{\u{g}}lu, Yasin and Aksaray, Derya},
+booktitle={2023 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+pages={8680--8686},
+year={2023},
+organization={IEEE}
+}
+```
+---
 
 ## Table of contents
 
